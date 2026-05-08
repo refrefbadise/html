@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Heineken Dashboard Backend</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .admin-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .json-viewer {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            max-height: 600px;
+            overflow-y: auto;
+            line-height: 1.4;
+            border: 1px solid var(--border-color);
+        }
+
+        .json-key {
+            color: #d63384;
+            font-weight: 600;
+        }
+
+        .json-string {
+            color: #0b7345;
+        }
+
+        .json-number {
+            color: #0066cc;
+        }
+
+        .export-section {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            margin-bottom: 30px;
+        }
+
+        .export-section h2 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
+
+        .stats-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-detail-box {
+            background: var(--light-bg);
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .stat-detail-box label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .stat-detail-box .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="navbar-content">
+                <div class="navbar-left">
+                    <img src="https://www.heineken.com/themes/custom/heineken_com/logo.svg" alt="Heineken" class="navbar-logo">
+                    <h2>Admin Panel - Backend Data</h2>
+                </div>
+                <div class="navbar-right">
+                    <button class="btn btn-secondary" onclick="window.location.href='dashboard.html'">← Back to Dashboard</button>
+                    <button class="btn btn-danger" onclick="logout()">Logout</button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Admin Content -->
+        <div class="dashboard-content">
+            <!-- Admin Actions -->
+            <div class="admin-actions">
+                <button class="btn btn-primary" onclick="exportJSON()">📥 Export as JSON</button>
+                <button class="btn btn-primary" onclick="exportCSV()">📊 Export as CSV</button>
+                <button class="btn btn-danger" onclick="clearAllData()">🗑️ Clear All Data</button>
+            </div>
+
+            <!-- Database Statistics -->
+            <div class="export-section">
+                <h2>Database Overview</h2>
+                <div class="stats-details">
+                    <div class="stat-detail-box">
+                        <label>Total Records</label>
+                        <div class="value" id="totalRecords">0</div>
+                    </div>
+                    <div class="stat-detail-box">
+                        <label>Total Storage Used</label>
+                        <div class="value" id="storageUsed">0 KB</div>
+                    </div>
+                    <div class="stat-detail-box">
+                        <label>Last Updated</label>
+                        <div class="value" id="lastUpdated" style="font-size: 14px;">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- JSON Data Viewer -->
+            <div class="export-section">
+                <h2>Raw Backend Data (JSON)</h2>
+                <p style="color: #666; margin-bottom: 15px; font-size: 14px;">
+                    This is your complete database. You can copy this data for backup or import to other systems.
+                </p>
+                <button class="btn btn-secondary" onclick="copyToClipboard()">📋 Copy All Data</button>
+                <div id="jsonViewer" class="json-viewer">
+                    <div style="color: #999; text-align: center; padding: 40px;">
+                        No data yet. Submit reports from the dashboard.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Summary -->
+            <div class="export-section">
+                <h2>Data Summary by Promoter</h2>
+                <div id="promoterSummary" class="table-responsive">
+                    <table class="reports-table">
+                        <thead>
+                            <tr>
+                                <th>Promoter</th>
+                                <th>Reports</th>
+                                <th>Locations</th>
+                                <th>Total Engagements</th>
+                                <th>Total Sales</th>
+                                <th>Total Giveaways</th>
+                            </tr>
+                        </thead>
+                        <tbody id="summaryTableBody">
+                            <tr>
+                                <td colspan="6" class="text-center">No data available</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check authentication
+        function checkAuth() {
+            if (sessionStorage.getItem('heineken_dashboard_authenticated') !== 'true') {
+                window.location.href = 'index.html';
+            }
+        }
+
+        function logout() {
+            sessionStorage.removeItem('heineken_dashboard_authenticated');
+            sessionStorage.removeItem('login_time');
+            window.location.href = 'index.html';
+        }
+
+        function loadData() {
+            const reports = JSON.parse(localStorage.getItem('heineken_reports') || '[]');
+            
+            // Update overview stats
+            document.getElementById('totalRecords').textContent = reports.length;
+            const storageSize = (localStorage.getItem('heineken_reports').length / 1024).toFixed(2);
+            document.getElementById('storageUsed').textContent = storageSize + ' KB';
+            
+            if (reports.length > 0) {
+                const lastReport = reports[reports.length - 1];
+                const lastDate = new Date(lastReport.submittedAt || lastReport.date).toLocaleDateString();
+                document.getElementById('lastUpdated').textContent = lastDate;
+            }
+
+            // Display JSON data
+            displayJSON(reports);
+
+            // Display summary
+            displaySummary(reports);
+        }
+
+        function displayJSON(data) {
+            const viewer = document.getElementById('jsonViewer');
+            
+            if (data.length === 0) {
+                viewer.innerHTML = '<div style="color: #999; text-align: center; padding: 40px;">No data yet. Submit reports from the dashboard.</div>';
+                return;
+            }
+
+            const jsonString = JSON.stringify(data, null, 2);
+            const highlighted = jsonString
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"([^"]*)"\s*:/g, '<span class="json-key">"$1"</span>:')
+                .replace(/: "([^"]*)"/g, ': <span class="json-string">"$1"</span>')
+                .replace(/: (\d+)/g, ': <span class="json-number">$1</span>')
+                .replace(/: (true|false|null)/g, ': <span class="json-number">$1</span>');
+
+            viewer.innerHTML = '<pre>' + highlighted + '</pre>';
+        }
+
+        function displaySummary(data) {
+            const summaryMap = {};
+
+            data.forEach(report => {
+                if (!summaryMap[report.promoterName]) {
+                    summaryMap[report.promoterName] = {
+                        promoter: report.promoterName,
+                        reports: 0,
+                        locations: new Set(),
+                        engagements: 0,
+                        sales: 0,
+                        giveaways: 0
+                    };
+                }
+
+                const summary = summaryMap[report.promoterName];
+                summary.reports++;
+                summary.locations.add(report.location);
+                summary.engagements += parseInt(report.engagements || 0);
+                summary.sales += parseInt(report.sales || 0);
+                summary.giveaways += parseInt(report.giveaways || 0);
+            });
+
+            const tableBody = document.getElementById('summaryTableBody');
+            const rows = Object.values(summaryMap).map(summary => `
+                <tr>
+                    <td>${summary.promoter}</td>
+                    <td>${summary.reports}</td>
+                    <td>${summary.locations.size}</td>
+                    <td>${summary.engagements}</td>
+                    <td>${summary.sales}</td>
+                    <td>${summary.giveaways}</td>
+                </tr>
+            `).join('');
+
+            if (rows) {
+                tableBody.innerHTML = rows;
+            } else {
+                tableBody.innerHTML = '<tr><td colspan="6" class="text-center">No data available</td></tr>';
+            }
+        }
+
+        function copyToClipboard() {
+            const jsonViewer = document.getElementById('jsonViewer').innerText;
+            navigator.clipboard.writeText(jsonViewer).then(() => {
+                alert('Data copied to clipboard!');
+            }).catch(() => {
+                alert('Failed to copy data');
+            });
+        }
+
+        function exportJSON() {
+            const reports = JSON.parse(localStorage.getItem('heineken_reports') || '[]');
+            const dataStr = JSON.stringify(reports, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `heineken-reports-${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+        }
+
+        function exportCSV() {
+            const reports = JSON.parse(localStorage.getItem('heineken_reports') || '[]');
+            
+            if (reports.length === 0) {
+                alert('No data to export');
+                return;
+            }
+
+            const headers = ['Date', 'Promoter', 'Location', 'Outlets', 'Engagements', 'Sales', 'Giveaways', 'Check-in', 'Check-out', 'Photos Count', 'Submitted At'];
+            
+            const csvContent = [
+                headers.join(','),
+                ...reports.map(r => [
+                    r.date,
+                    r.promoterName,
+                    r.location,
+                    r.outlets,
+                    r.engagements,
+                    r.sales,
+                    r.giveaways,
+                    r.checkIn,
+                    r.checkOut || 'N/A',
+                    r.photos ? r.photos.length : 0,
+                    r.submittedAt
+                ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(','))
+            ].join('\n');
+
+            const dataBlob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `heineken-reports-${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        }
+
+        function clearAllData() {
+            if (confirm('⚠️ WARNING: This will permanently delete ALL reports and data. This action cannot be undone. Are you sure?')) {
+                if (confirm('This is your last chance to confirm. Delete everything?')) {
+                    localStorage.removeItem('heineken_reports');
+                    loadData();
+                    alert('All data has been cleared.');
+                }
+            }
+        }
+
+        // Initialize
+        checkAuth();
+        loadData();
+        setInterval(loadData, 5000); // Refresh every 5 seconds
+    </script>
+</body>
+</html>
