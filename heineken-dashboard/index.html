@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heineken Reporting Dashboard - Login</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <img src="https://www.heineken.com/themes/custom/heineken_com/logo.svg" alt="Heineken Logo" class="logo">
+            <h1>Heineken Reporting Dashboard</h1>
+            <p>Enter password to access the dashboard</p>
+            
+            <form id="loginForm">
+                <div class="form-group">
+                    <input 
+                        type="password" 
+                        id="password" 
+                        placeholder="Enter Password" 
+                        required
+                        autocomplete="off"
+                    >
+                </div>
+                <button type="submit" class="btn btn-primary">Login</button>
+            </form>
+            
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const DASHBOARD_PASSWORD = "Heineken2026"; // Change this to your desired password
+
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('errorMessage');
+            
+            if (password === DASHBOARD_PASSWORD) {
+                // Set session token
+                sessionStorage.setItem('heineken_dashboard_authenticated', 'true');
+                sessionStorage.setItem('login_time', new Date().getTime());
+                window.location.href = 'dashboard.html';
+            } else {
+                errorDiv.textContent = 'Invalid password. Please try again.';
+                errorDiv.style.display = 'block';
+                document.getElementById('password').value = '';
+            }
+        });
+
+        // Check if already authenticated
+        window.addEventListener('load', function() {
+            if (sessionStorage.getItem('heineken_dashboard_authenticated') === 'true') {
+                window.location.href = 'dashboard.html';
+            }
+        });
+    </script>
+</body>
+</html>
